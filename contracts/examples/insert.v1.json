@@ -1,0 +1,19 @@
+{
+  "event_id": "vehicle_signals-SIG-001-v41-insert",
+  "source": "azure-databricks",
+  "catalog": "poc_notifications",
+  "schema": "main",
+  "table": "vehicle_signals",
+  "primary_key": "SIG-001",
+  "change_type": "insert",
+  "commit_version": 41,
+  "commit_timestamp": "2026-08-05T08:00:00Z",
+  "payload": {
+    "signal_id": "SIG-001",
+    "vehicle_id": "VEH-001",
+    "signal_type": "speed",
+    "signal_value": 50,
+    "event_timestamp": "2026-08-05T07:59:58Z",
+    "updated_at": "2026-08-05T08:00:00Z"
+  }
+}

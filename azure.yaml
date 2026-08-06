@@ -1,0 +1,11 @@
+name: lda-lat-notification-poc
+metadata:
+  template: lda-lat-notification-poc@0.1.0
+infra:
+  provider: bicep
+  path: infra
+  module: main
+hooks:
+  preprovision:
+    shell: pwsh
+    run: ./scripts/preflight.ps1

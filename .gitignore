@@ -1,0 +1,12 @@
+.azure/
+.databricks/
+.vscode/
+bin/
+obj/
+infra/main.json
+infra/**/*.json.tmp
+*.user
+local.settings.json
+evidence/**/*.json
+evidence/**/*.log
+!evidence/README.md

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/delta-change-envelope.v1.schema.json",
+  "title": "Delta Change Envelope v1",
+  "description": "Changed-row event published from Azure Databricks Delta Change Data Feed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "source",
+    "catalog",
+    "schema",
+    "table",
+    "primary_key",
+    "change_type",
+    "commit_version",
+    "commit_timestamp",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "pattern": "^vehicle_signals-[A-Za-z0-9._-]+-v[0-9]+-(insert|update_postimage)$"
+    },
+    "source": {
+      "const": "azure-databricks"
+    },
+    "catalog": {
+      "const": "poc_notifications"
+    },
+    "schema": {
+      "const": "main"
+    },
+    "table": {
+      "const": "vehicle_signals"
+    },
+    "primary_key": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "change_type": {
+      "enum": [
+        "insert",
+        "update_postimage"
+      ]
+    },
+    "commit_version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "commit_timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signal_id",
+        "vehicle_id",
+        "signal_type",
+        "signal_value",
+        "event_timestamp",
+        "updated_at"
+      ],
+      "properties": {
+        "signal_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "vehicle_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signal_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signal_value": {
+          "type": "number"
+        },
+        "event_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
