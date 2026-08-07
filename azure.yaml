@@ -9,3 +9,8 @@ hooks:
   preprovision:
     shell: pwsh
     run: ./scripts/preflight.ps1
+services:
+  receiver:
+    project: ./src/receiver
+    host: function
+    language: dotnet

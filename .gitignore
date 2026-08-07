@@ -3,6 +3,8 @@
 .vscode/
 bin/
 obj/
+__pycache__/
+*.py[cod]
 infra/main.json
 infra/**/*.json.tmp
 *.user

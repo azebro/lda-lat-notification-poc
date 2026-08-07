@@ -107,6 +107,11 @@ function Invoke-CapabilityRetry {
     }
 }
 
+$currentUser = Invoke-Databricks @('current-user', 'me', '--output', 'json') | ConvertFrom-Json
+if ($JobRunPrincipal -ne $currentUser.userName) {
+    throw "DATABRICKS_JOB_RUN_PRINCIPAL must identify the bundle deployment identity ($($currentUser.userName)) because Phase 4 jobs run as the current bundle user."
+}
+
 if (-not (Test-DatabricksObject @('metastores', 'current'))) {
     if ([string]::IsNullOrWhiteSpace($AccountProfile) -or [string]::IsNullOrWhiteSpace($MetastoreId)) {
         throw 'The workspace has no metastore assignment. Set DATABRICKS_ACCOUNT_PROFILE and DATABRICKS_METASTORE_ID, or assign the regional metastore as a Databricks account admin.'

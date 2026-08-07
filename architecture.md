@@ -173,7 +173,7 @@ sequenceDiagram
             BS-->>FN: 201 Created
             FN->>AI: processed, duplicate=false
         else Blob already exists
-            BS-->>FN: 409 BlobAlreadyExists
+            BS-->>FN: 412 ConditionNotMet or 409 BlobAlreadyExists
             FN->>AI: processed, duplicate=true
         else Other storage failure
             BS-->>FN: Error
@@ -185,7 +185,7 @@ sequenceDiagram
 ```
 
 - `201 Created` means the logical event was captured for the first time.
-- `409 BlobAlreadyExists` is handled as a successful duplicate delivery.
+- `412 ConditionNotMet` from `If-None-Match: *`, or SDK create-only `409 BlobAlreadyExists`, is handled as a successful duplicate delivery.
 - Validation errors and other storage failures enter the configured bounded retry policy.
 - Success means one unique audit blob per `event_id`, not exactly one Function invocation.
 
@@ -319,7 +319,7 @@ The durable Blob and telemetry serve different purposes:
 | Publisher cluster restart | Structured Streaming resumes from the ADLS checkpoint. |
 | Publisher retries an acknowledged Kafka write | Event Hubs can contain a duplicate; receiver idempotency prevents a second audit blob. |
 | Function restarts | Event Hubs trigger resumes from its consumer-group checkpoint in Function host storage. |
-| Duplicate event delivery | Existing audit blob returns `409`; Function records `duplicate=true` and succeeds. |
+| Duplicate event delivery | Existing audit blob returns `412 ConditionNotMet` (or SDK create-only `409 BlobAlreadyExists`); Function records `duplicate=true` and succeeds. |
 | Audit storage transient failure | Function throws and the configured bounded retry policy reruns the invocation before the partition pointer advances. |
 | Malformed event | Function records validation failure and exhausts the bounded retry policy; the pointer then advances without an audit Blob. No POC quarantine or DLQ is provided. |
 | Checkpoint loss | Replay or omission risk; checkpoint deletion is allowed only as part of a full source-and-evidence reset. |

@@ -1,0 +1,35 @@
+bundle:
+  name: lda-lat-notification-poc
+  databricks_cli_version: ">= 0.278.0"
+
+include:
+  - resources/*.yml
+
+variables:
+  node_type_id:
+    description: Single-node VM type from AZURE_DATABRICKS_NODE_TYPE.
+  event_hub_namespace_fqdn:
+    description: Event Hubs FQDN from AZURE_EVENT_HUB_NAMESPACE_FQDN.
+  service_credential_name:
+    description: Unity Catalog service credential created by bootstrap-databricks.ps1.
+  catalog_name:
+    default: poc_notifications
+  schema_name:
+    default: main
+  table_name:
+    default: vehicle_signals
+  volume_name:
+    default: streaming_state
+  checkpoint_path:
+    default: /Volumes/poc_notifications/main/streaming_state/cdf_publisher
+  event_hub_name:
+    default: delta-changes
+  spark_version:
+    default: v18.x-scala2.13
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
