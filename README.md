@@ -76,6 +76,8 @@ $env:DATABRICKS_ACCOUNT_PROFILE = 'ACCOUNT_ADMIN_PROFILE'
 # Optional when Azure CLI/unified auth can authenticate to the provisioned workspace:
 $env:DATABRICKS_CONFIG_PROFILE = 'WORKSPACE_PROFILE'
 $env:DATABRICKS_JOB_RUN_PRINCIPAL = 'user-or-service-principal-name'
+# Optional; defaults to 18.x-scala2.13 and is validated against the workspace:
+$env:POC_DATABRICKS_SPARK_VERSION = '18.x-scala2.13'
 ./scripts/deploy.ps1 -EnvironmentName dev
 ```
 

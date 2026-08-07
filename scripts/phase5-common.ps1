@@ -120,7 +120,15 @@ function Set-PocBundleEnvironment {
         $workspaceUrl = "https://$workspaceUrl"
     }
 
+    $sparkVersion = if ([string]::IsNullOrWhiteSpace($env:POC_DATABRICKS_SPARK_VERSION)) {
+        '18.x-scala2.13'
+    }
+    else {
+        $env:POC_DATABRICKS_SPARK_VERSION
+    }
+
     [Environment]::SetEnvironmentVariable('DATABRICKS_HOST', $workspaceUrl, 'Process')
+    [Environment]::SetEnvironmentVariable('BUNDLE_VAR_spark_version', $sparkVersion, 'Process')
     [Environment]::SetEnvironmentVariable('BUNDLE_VAR_node_type_id', [string]$Values.AZURE_DATABRICKS_NODE_TYPE, 'Process')
     [Environment]::SetEnvironmentVariable('BUNDLE_VAR_event_hub_namespace_fqdn', [string]$Values.AZURE_EVENT_HUB_NAMESPACE_FQDN, 'Process')
     [Environment]::SetEnvironmentVariable('BUNDLE_VAR_event_hub_name', [string]$Values.AZURE_EVENT_HUB_NAME, 'Process')

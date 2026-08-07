@@ -27,7 +27,7 @@ variables:
   event_hub_name:
     default: delta-changes
   spark_version:
-    default: v18.x-scala2.13
+    description: Databricks Runtime version key from POC_DATABRICKS_SPARK_VERSION.
 
 targets:
   dev:

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Azure;
 using Azure.Messaging.EventHubs;
 using Azure.Storage.Blobs.Models;
@@ -56,6 +57,24 @@ public sealed class ReceiverTests
         Assert.AreEqual(
             "events/poc_notifications/main/vehicle_signals/2026/08/04/vehicle_signals-signal-001-v42-insert.json",
             path);
+    }
+
+    [TestMethod]
+    public void AuditPath_IsCultureInvariant()
+    {
+        var original = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+
+        try
+        {
+            Assert.AreEqual(
+                "events/poc_notifications/main/vehicle_signals/2026/08/05/vehicle_signals-signal-001-v42-insert.json",
+                AuditPath.For(ValidEnvelope()));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
     }
 
     [TestMethod]

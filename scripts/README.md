@@ -15,8 +15,11 @@
 $env:DATABRICKS_ACCOUNT_PROFILE = 'ACCOUNT_ADMIN_PROFILE'
 $env:DATABRICKS_CONFIG_PROFILE = 'WORKSPACE_PROFILE' # optional; host is validated when set
 $env:DATABRICKS_JOB_RUN_PRINCIPAL = 'user-or-service-principal-name'
+$env:POC_DATABRICKS_SPARK_VERSION = '18.x-scala2.13' # optional Databricks Runtime override
 ./scripts/deploy.ps1 -EnvironmentName dev
 ```
+
+Orchestration supplies every bundle variable, including `spark_version` and `node_type_id`. The workspace-plane bootstrap rejects a node type or Databricks Runtime the workspace does not offer and reports the available runtime keys.
 
 Deployment stages are idempotent where the underlying platform permits. To resume after a partial failure, rerun the command and use the narrow skip switches only for stages already proven complete:
 

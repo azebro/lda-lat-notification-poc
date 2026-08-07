@@ -305,7 +305,7 @@ function Get-PocAuditPath {
         [Globalization.CultureInfo]::InvariantCulture,
         [Globalization.DateTimeStyles]::RoundtripKind
     )
-    $datePath = $commitTimestamp.UtcDateTime.ToString('yyyy/MM/dd')
+    $datePath = $commitTimestamp.UtcDateTime.ToString('yyyy/MM/dd', [Globalization.CultureInfo]::InvariantCulture)
     $eventId = [string](Get-PocRequiredMapValue -Map $Commit -Key 'expected_event_id' -Description 'source commit')
     return "events/poc_notifications/main/vehicle_signals/$datePath/$eventId.json"
 }

@@ -9,6 +9,7 @@ param(
     [string]$StorageAccountName = $env:AZURE_DATA_LAKE_ACCOUNT_NAME,
     [string]$ContainerName = $env:AZURE_DATA_LAKE_CONTAINER_NAME,
     [string]$DatabricksNodeType = $env:AZURE_DATABRICKS_NODE_TYPE,
+    [string]$SparkVersion = $env:BUNDLE_VAR_spark_version,
     [string]$NameToken = $env:AZURE_NAME_TOKEN,
     [string]$JobRunPrincipal = $env:DATABRICKS_JOB_RUN_PRINCIPAL,
     [string]$CatalogName = 'poc_notifications',
@@ -150,6 +151,7 @@ $requiredWorkspaceValues = @{
     StorageAccountName = $StorageAccountName
     ContainerName = $ContainerName
     DatabricksNodeType = $DatabricksNodeType
+    SparkVersion = $SparkVersion
     NameToken = $NameToken
     JobRunPrincipal = $JobRunPrincipal
     WorkspaceId = $WorkspaceId
@@ -167,6 +169,13 @@ if ($JobRunPrincipal -ne $currentUser.userName) {
 $nodeTypes = Invoke-Databricks @('clusters', 'list-node-types', '--output', 'json') | ConvertFrom-Json
 if (@($nodeTypes.node_types | Where-Object node_type_id -eq $DatabricksNodeType).Count -eq 0) {
     throw "Databricks node type $DatabricksNodeType is not supported by this workspace."
+}
+
+$sparkVersions = Invoke-Databricks @('clusters', 'spark-versions', '--output', 'json') | ConvertFrom-Json
+$sparkVersionKeys = @($sparkVersions.versions | ForEach-Object { [string]$_.key })
+if ($SparkVersion -notin $sparkVersionKeys) {
+    $candidates = @($sparkVersionKeys | Where-Object { $_ -match 'scala' } | Sort-Object) -join ', '
+    throw "Databricks Runtime '$SparkVersion' is not offered by this workspace. Set POC_DATABRICKS_SPARK_VERSION to one of: $candidates."
 }
 
 $managedRoot = "abfss://$ContainerName@$StorageAccountName.dfs.core.windows.net/managed"
