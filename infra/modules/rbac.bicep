@@ -157,4 +157,4 @@ resource verifierLogReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
-output roleAssignmentCount int = 9
+output roleAssignmentCount int = 10

@@ -4,7 +4,7 @@ import json
 import math
 import re
 from collections.abc import Iterable, Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 CATALOG_NAME = "poc_notifications"
@@ -19,6 +19,18 @@ PAYLOAD_FIELDS = (
     "signal_value",
     "event_timestamp",
     "updated_at",
+)
+ENVELOPE_FIELDS = (
+    "event_id",
+    "source",
+    "catalog",
+    "schema",
+    "table",
+    "primary_key",
+    "change_type",
+    "commit_version",
+    "commit_timestamp",
+    "payload",
 )
 _KEY_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 _IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -64,10 +76,10 @@ def deterministic_event_id(
 def contract_timestamp(value: datetime | str) -> str:
     timestamp = value
     if isinstance(timestamp, str):
-        timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        timestamp = datetime.fromisoformat(timestamp)
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
         raise ValueError("Contract timestamps must include a UTC offset.")
-    return timestamp.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace(
+    return timestamp.astimezone(UTC).isoformat(timespec="milliseconds").replace(
         "+00:00", "Z"
     )
 
@@ -88,7 +100,7 @@ def build_envelope(
     signal_value = row.get("signal_value")
 
     if isinstance(signal_value, bool) or not isinstance(signal_value, (int, float)):
-        raise ValueError("signal_value must be numeric.")
+        raise TypeError("signal_value must be numeric.")
     if not math.isfinite(float(signal_value)):
         raise ValueError("signal_value must be finite.")
 
@@ -123,6 +135,50 @@ def canonical_json(envelope: Mapping[str, Any]) -> str:
     return json.dumps(envelope, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
 
 
+def validate_envelope(envelope: Mapping[str, Any]) -> None:
+    _validate_exact_fields(envelope, ENVELOPE_FIELDS, "envelope")
+
+    source = _required_string(envelope, "source")
+    catalog_name = _required_string(envelope, "catalog")
+    schema_name = _required_string(envelope, "schema")
+    table_name = _required_string(envelope, "table")
+    primary_key = validate_signal_id(_required_string(envelope, "primary_key"))
+    change_type = _required_string(envelope, "change_type")
+    commit_version = envelope.get("commit_version")
+    validate_contract_location(catalog_name, schema_name, table_name)
+
+    if source != SOURCE_NAME:
+        raise ValueError(f"source must be {SOURCE_NAME!r}.")
+
+    expected_event_id = deterministic_event_id(
+        primary_key,
+        commit_version,
+        change_type,
+        table_name,
+    )
+    if envelope.get("event_id") != expected_event_id:
+        raise ValueError("event_id does not match the deterministic contract value.")
+    contract_timestamp(envelope["commit_timestamp"])
+
+    payload = envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        raise TypeError("payload must be an object.")
+    _validate_exact_fields(payload, PAYLOAD_FIELDS, "payload")
+    signal_id = validate_signal_id(_required_string(payload, "signal_id"))
+    _required_string(payload, "vehicle_id")
+    _required_string(payload, "signal_type")
+    if signal_id != primary_key:
+        raise ValueError("primary_key must equal payload.signal_id.")
+
+    signal_value = payload.get("signal_value")
+    if isinstance(signal_value, bool) or not isinstance(signal_value, (int, float)):
+        raise TypeError("payload.signal_value must be numeric.")
+    if not math.isfinite(float(signal_value)):
+        raise ValueError("payload.signal_value must be finite.")
+    contract_timestamp(payload["event_timestamp"])
+    contract_timestamp(payload["updated_at"])
+
+
 def filter_publishable_changes(rows: Iterable[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     return [row for row in rows if row.get("_change_type") in SUPPORTED_CHANGE_TYPES]
 
@@ -143,3 +199,16 @@ def _required_string(row: Mapping[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{key} must be a non-empty string.")
     return value
+
+
+def _validate_exact_fields(
+    value: Mapping[str, Any],
+    expected_fields: tuple[str, ...],
+    label: str,
+) -> None:
+    actual = set(value)
+    expected = set(expected_fields)
+    if actual != expected:
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        raise ValueError(f"{label} fields do not match the v1 contract; missing={missing}, extra={extra}.")

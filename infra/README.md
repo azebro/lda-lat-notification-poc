@@ -33,4 +33,4 @@ Deployment outputs expose resource names, workspace identifiers, Event Hubs endp
 
 Bicep deploys the Azure workspace and Access Connector. Unity Catalog metastore assignment, credentials, external location, workspace bindings, and grants are configured by [../scripts/bootstrap-databricks.ps1](../scripts/bootstrap-databricks.ps1) because those operations use Databricks account/workspace APIs rather than Azure Resource Manager.
 
-The bootstrap never creates, deletes, or unassigns a regional metastore.
+The bootstrap supports separate `Account` and `Workspace` phases so bundle validation can run between metastore assignment and workspace-plane object creation. It never creates, deletes, or unassigns a regional metastore.

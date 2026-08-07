@@ -1,5 +1,7 @@
 .azure/
 .databricks/
+.ruff_cache/
+.venv/
 .vscode/
 bin/
 obj/
@@ -11,4 +13,5 @@ infra/**/*.json.tmp
 local.settings.json
 evidence/**/*.json
 evidence/**/*.log
+evidence/**/*.md
 !evidence/README.md

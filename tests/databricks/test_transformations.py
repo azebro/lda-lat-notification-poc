@@ -5,7 +5,7 @@ import os
 import socketserver
 import sys
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -27,7 +27,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = REPOSITORY_ROOT / "databricks" / "src"
 sys.path.insert(0, str(SOURCE_PATH))
 
-from transformations import build_event_dataframe  # noqa: E402
+from transformations import build_event_dataframe
 
 
 class TransformationTests(unittest.TestCase):
@@ -57,7 +57,7 @@ class TransformationTests(unittest.TestCase):
         cls.spark.stop()
 
     def test_build_event_dataframe_filters_and_emits_schema_valid_events(self) -> None:
-        timestamp = datetime(2026, 8, 5, 12, 34, 56, tzinfo=timezone.utc)
+        timestamp = datetime(2026, 8, 5, 12, 34, 56, tzinfo=UTC)
         schema = StructType(
             [
                 StructField("signal_id", StringType(), False),

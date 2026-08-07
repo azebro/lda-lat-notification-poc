@@ -3,18 +3,19 @@ from __future__ import annotations
 import json
 import sys
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 SOURCE_PATH = Path(__file__).resolve().parents[2] / "databricks" / "src"
 sys.path.insert(0, str(SOURCE_PATH))
 
-from contract import (  # noqa: E402
+from contract import (
     build_envelope,
     canonical_json,
     deterministic_event_id,
     filter_publishable_changes,
     validate_contract_location,
+    validate_envelope,
     validate_identifier,
     validate_signal_id,
     validate_unique_signal_ids,
@@ -94,6 +95,23 @@ class ContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "signal_id must match"):
             validate_signal_id("signal/001")
 
+    def test_validate_envelope_accepts_canonical_contract(self) -> None:
+        validate_envelope(build_envelope(self.valid_row()))
+
+    def test_validate_envelope_rejects_contract_drift(self) -> None:
+        cases = {
+            "extra field": ("fields do not match", lambda value: value.update(extra=True)),
+            "event id": ("deterministic", lambda value: value.update(event_id="wrong")),
+            "primary key": ("primary_key must equal", self._change_payload_signal_id),
+        }
+
+        for label, (message, mutate) in cases.items():
+            with self.subTest(label=label):
+                envelope = build_envelope(self.valid_row())
+                mutate(envelope)
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_envelope(envelope)
+
     @staticmethod
     def valid_row() -> dict[str, object]:
         return {
@@ -101,12 +119,18 @@ class ContractTests(unittest.TestCase):
             "vehicle_id": "vehicle-001",
             "signal_type": "temperature",
             "signal_value": 12.5,
-            "event_timestamp": datetime(2026, 8, 5, 12, 30, tzinfo=timezone.utc),
-            "updated_at": datetime(2026, 8, 5, 12, 34, 55, tzinfo=timezone.utc),
+            "event_timestamp": datetime(2026, 8, 5, 12, 30, tzinfo=UTC),
+            "updated_at": datetime(2026, 8, 5, 12, 34, 55, tzinfo=UTC),
             "_change_type": "insert",
             "_commit_version": 42,
-            "_commit_timestamp": datetime(2026, 8, 5, 12, 34, 56, tzinfo=timezone.utc),
+            "_commit_timestamp": datetime(2026, 8, 5, 12, 34, 56, tzinfo=UTC),
         }
+
+    @staticmethod
+    def _change_payload_signal_id(envelope: dict[str, object]) -> None:
+        payload = envelope["payload"]
+        assert isinstance(payload, dict)
+        payload["signal_id"] = "signal-002"
 
 
 if __name__ == "__main__":

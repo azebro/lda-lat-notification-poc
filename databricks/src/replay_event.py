@@ -1,8 +1,14 @@
 # Databricks notebook source
 from __future__ import annotations
 
-from contract import validate_contract_location, validate_identifier
-from transformations import build_event_dataframe
+import json
+
+from contract import (
+    canonical_json,
+    validate_contract_location,
+    validate_envelope,
+    validate_identifier,
+)
 
 
 def widget(name: str, default: str) -> str:
@@ -17,41 +23,35 @@ validate_contract_location(catalog_name, schema_name, table_name)
 event_hub_namespace_fqdn = widget("event_hub_namespace_fqdn", "")
 event_hub_name = widget("event_hub_name", "delta-changes")
 service_credential_name = widget("service_credential_name", "")
-checkpoint_path = widget(
-    "checkpoint_path",
-    "/Volumes/poc_notifications/main/streaming_state/cdf_publisher",
-)
+envelope_json = widget("envelope_json", "{}")
 
 if not event_hub_namespace_fqdn.endswith(".servicebus.windows.net"):
     raise ValueError("event_hub_namespace_fqdn must be an Azure Event Hubs namespace FQDN.")
 if not event_hub_name or not service_credential_name:
     raise ValueError("event_hub_name and service_credential_name are required.")
-expected_checkpoint_prefix = f"/Volumes/{catalog_name}/{schema_name}/streaming_state/"
-if not checkpoint_path.startswith(expected_checkpoint_prefix):
-    raise ValueError("checkpoint_path must use the POC streaming_state Unity Catalog volume.")
 
-spark.conf.set("spark.sql.session.timeZone", "UTC")
-qualified_table = f"`{catalog_name}`.`{schema_name}`.`{table_name}`"
+envelope = json.loads(envelope_json)
+if not isinstance(envelope, dict):
+    raise TypeError("envelope_json must contain a JSON object.")
+validate_envelope(envelope)
+
 kafka_options = {
     "kafka.bootstrap.servers": f"{event_hub_namespace_fqdn}:9093",
     "topic": event_hub_name,
     "databricks.serviceCredential": service_credential_name,
 }
+spark.createDataFrame(
+    [(envelope["primary_key"], canonical_json(envelope))],
+    "key STRING, value STRING",
+).write.format("kafka").options(**kafka_options).save()
 
-changes = spark.readStream.option("readChangeFeed", "true").table(qualified_table)
-events = build_event_dataframe(
-    changes,
-    catalog_name=catalog_name,
-    schema_name=schema_name,
-    table_name=table_name,
+dbutils.notebook.exit(
+    json.dumps(
+        {
+            "event_id": envelope["event_id"],
+            "event_hub": event_hub_name,
+            "status": "replayed",
+        },
+        separators=(",", ":"),
+    )
 )
-query = (
-    events.writeStream.format("kafka")
-    .options(**kafka_options)
-    .option("checkpointLocation", checkpoint_path)
-    .outputMode("append")
-    .queryName("delta_change_notification_publisher")
-    .trigger(processingTime="5 seconds")
-    .start()
-)
-query.awaitTermination()

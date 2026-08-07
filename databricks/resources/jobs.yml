@@ -1,5 +1,35 @@
 resources:
   jobs:
+    kafka_smoke:
+      name: "[${bundle.target}] Delta notification - Kafka smoke"
+      max_concurrent_runs: 1
+      tasks:
+        - task_key: kafka_smoke
+          job_cluster_key: smoke_cluster
+          timeout_seconds: 900
+          notebook_task:
+            notebook_path: ../src/kafka_smoke.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+              table_name: ${var.table_name}
+              event_hub_namespace_fqdn: ${var.event_hub_namespace_fqdn}
+              event_hub_name: ${var.event_hub_name}
+              service_credential_name: ${var.service_credential_name}
+      job_clusters:
+        - job_cluster_key: smoke_cluster
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: DATA_SECURITY_MODE_DEDICATED
+            single_user_name: ${workspace.current_user.userName}
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+            custom_tags:
+              ResourceClass: SingleNode
+              poc: delta-change-notification
+
     setup_source:
       name: "[${bundle.target}] Delta notification - setup source"
       max_concurrent_runs: 1
@@ -15,6 +45,7 @@ resources:
               table_name: ${var.table_name}
               volume_name: ${var.volume_name}
               checkpoint_path: ${var.checkpoint_path}
+              ownership_token: ${var.ownership_token}
               require_empty: "true"
       job_clusters:
         - job_cluster_key: setup_cluster
@@ -89,6 +120,39 @@ resources:
               table_name: ${var.table_name}
       job_clusters:
         - job_cluster_key: change_cluster
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            num_workers: 0
+            data_security_mode: DATA_SECURITY_MODE_DEDICATED
+            single_user_name: ${workspace.current_user.userName}
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+            custom_tags:
+              ResourceClass: SingleNode
+              poc: delta-change-notification
+
+    replay_event:
+      name: "[${bundle.target}] Delta notification - replay event"
+      max_concurrent_runs: 1
+      parameters:
+        - name: envelope_json
+          default: "{}"
+      tasks:
+        - task_key: replay_event
+          job_cluster_key: replay_cluster
+          timeout_seconds: 900
+          notebook_task:
+            notebook_path: ../src/replay_event.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+              table_name: ${var.table_name}
+              event_hub_namespace_fqdn: ${var.event_hub_namespace_fqdn}
+              event_hub_name: ${var.event_hub_name}
+              service_credential_name: ${var.service_credential_name}
+      job_clusters:
+        - job_cluster_key: replay_cluster
           new_cluster:
             spark_version: ${var.spark_version}
             node_type_id: ${var.node_type_id}

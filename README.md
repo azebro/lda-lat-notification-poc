@@ -12,7 +12,7 @@ This repository proves that an insert or update to an Azure Databricks Delta tab
 - [Azure deployment](infra/README.md)
 - [Contract validation](scripts/validate-contract.ps1)
 - [Databricks bootstrap](scripts/bootstrap-databricks.ps1)
-- [Teardown design](plan.md#phase-5-deployment-orchestration)
+- [Deployment and teardown](scripts/README.md)
 
 ## Repository Structure
 
@@ -36,10 +36,10 @@ This repository proves that an insert or update to an Azure Databricks Delta tab
 |---|---|---|
 | 1. Repository and contracts | Implemented | Repository map, versioned JSON Schema, insert/update examples, stable plan artifact |
 | 2. Azure infrastructure | Implemented | `azd` configuration, modular Bicep, preflight and Databricks bootstrap scripts |
-| 3. Receiver | Planned | .NET 10 isolated Azure Function |
-| 4. Databricks workloads | Planned | Asset Bundle, source setup, CDF publisher, change driver |
-| 5. Deployment orchestration | Planned | Ordered deployment and teardown automation |
-| 6. Verification | Planned | Insert, update, restart, idempotency, telemetry, and RBAC evidence |
+| 3. Receiver | Implemented | .NET 10 isolated Azure Function, audit Blob idempotency, OpenTelemetry, unit tests |
+| 4. Databricks workloads | Implemented | Asset Bundle, source setup, Kafka smoke, CDF publisher, change driver, Spark tests |
+| 5. Deployment orchestration | Implemented | Ordered deployment, output handoff, local validation, publisher drain, ownership-aware teardown |
+| 6. Verification | Implemented; live proof pending | Resumable insert/update/restart/replay verifier, telemetry and RBAC assertions, JSON/Markdown evidence |
 
 ## Deployment Boundary
 
@@ -54,32 +54,50 @@ No Event Hubs SAS key or secret-bearing application connection string is part of
 - [Databricks CLI](https://learn.microsoft.com/azure/databricks/dev-tools/cli/install)
 - PowerShell 7
 - .NET 10 SDK
+- Python 3.11 and OpenJDK 17 for local Spark tests
 - Azure subscription deployment and role-assignment permissions
 - Databricks account/workspace administration and access to a regional Unity Catalog metastore
 
-The current machine is missing `azd` and the Databricks CLI. Install them before provisioning.
-
-## Phase 2 Validation
+## Local Validation
 
 ```powershell
-az bicep build --file infra/main.bicep
-./scripts/validate-contract.ps1
-./scripts/preflight.ps1
+python -m pip install -r tests/databricks/requirements.txt
+./scripts/test-local.ps1
 ```
 
-After prerequisites and Azure authentication are ready:
+## Deployment
+
+Create/select an `azd` environment, authenticate Azure and Databricks CLI profiles, then set the Databricks job principal:
 
 ```powershell
 azd auth login
-azd up
+azd env new dev --subscription '<subscription-id>' --location '<azure-region>'
+$env:DATABRICKS_ACCOUNT_PROFILE = 'ACCOUNT_ADMIN_PROFILE'
+# Optional when Azure CLI/unified auth can authenticate to the provisioned workspace:
+$env:DATABRICKS_CONFIG_PROFILE = 'WORKSPACE_PROFILE'
+$env:DATABRICKS_JOB_RUN_PRINCIPAL = 'user-or-service-principal-name'
+./scripts/deploy.ps1 -EnvironmentName dev
 ```
 
-The Databricks bootstrap is intentionally a separate account/workspace-plane operation. Load the `azd` outputs, set `DATABRICKS_JOB_RUN_PRINCIPAL`, and run:
+If a workspace profile is supplied, orchestration verifies that its host exactly matches the Bicep-created workspace before any workspace mutation.
+
+The orchestrator provisions Azure, captures Bicep outputs through `azd`, assigns the existing regional metastore, validates and bootstraps Unity Catalog, runs the Kafka credential smoke test, deploys the Function and bundle, runs source setup, and starts the publisher without waiting.
+
+## Verification
+
+After deploying the current infrastructure and bundle, run the Phase 6 proof:
 
 ```powershell
-./scripts/bootstrap-databricks.ps1
+./scripts/verify-poc.ps1 -EnvironmentName dev
 ```
 
-See [infra/README.md](infra/README.md) for module boundaries and deployment outputs.
+Resume an interrupted proof with `-Resume`. The verifier writes ignored JSON and Markdown artefacts under `evidence/`; it does not deploy resources. No live cloud proof has been run as part of the implementation-only work in this repository.
 
-Phase 5 will add the executable ownership-aware teardown script. Until then, follow the ordered teardown design in [plan.md](plan.md#phase-5-deployment-orchestration); do not delete the shared regional Unity Catalog metastore.
+## Teardown
+
+```powershell
+./scripts/teardown.ps1 -EnvironmentName dev -DryRun
+./scripts/teardown.ps1 -EnvironmentName dev -ConfirmUnityCatalogDelete -Confirm:$false
+```
+
+Teardown never deletes or unassigns the shared regional Unity Catalog metastore. See [scripts/README.md](scripts/README.md) for resume and partial-failure options.

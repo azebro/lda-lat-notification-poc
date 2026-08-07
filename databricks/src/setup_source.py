@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from contract import validate_contract_location, validate_identifier
 
@@ -17,12 +16,16 @@ schema_name = validate_identifier(widget("schema_name", "main"))
 table_name = validate_identifier(widget("table_name", "vehicle_signals"))
 validate_contract_location(catalog_name, schema_name, table_name)
 volume_name = validate_identifier(widget("volume_name", "streaming_state"))
+ownership_token = widget("ownership_token", "")
 checkpoint_path = widget(
     "checkpoint_path",
     f"/Volumes/{catalog_name}/{schema_name}/{volume_name}/cdf_publisher",
 )
 require_empty = widget("require_empty", "true").lower() == "true"
 
+if not ownership_token or not ownership_token.isalnum():
+    raise ValueError("ownership_token must be a non-empty alphanumeric value.")
+ownership_marker = f"poc-owner:{ownership_token}"
 if not checkpoint_path.startswith(f"/Volumes/{catalog_name}/{schema_name}/{volume_name}/"):
     raise ValueError("checkpoint_path must be inside the POC streaming-state volume.")
 
@@ -33,7 +36,7 @@ spark.sql(f"CREATE CATALOG IF NOT EXISTS `{catalog_name}`")
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {qualified_schema}")
 spark.sql(
     f"CREATE VOLUME IF NOT EXISTS {qualified_schema}.`{volume_name}` "
-    "COMMENT 'POC-owned Delta CDF streaming checkpoints'"
+    f"COMMENT '{ownership_marker}'"
 )
 spark.sql(
     f"""
@@ -48,12 +51,14 @@ spark.sql(
     USING DELTA
     TBLPROPERTIES (
       'delta.enableChangeDataFeed' = 'true',
+            'poc.owner' = '{ownership_marker}',
       'poc.purpose' = 'delta-change-notification'
     )
     """
 )
 spark.sql(
-    f"ALTER TABLE {qualified_table} SET TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')"
+    f"ALTER TABLE {qualified_table} SET TBLPROPERTIES ("
+    f"'delta.enableChangeDataFeed' = 'true', 'poc.owner' = '{ownership_marker}')"
 )
 
 table_properties = {
@@ -84,12 +89,20 @@ if require_empty and metrics.row_count:
         "setup_source requires an empty table. Use a new signal environment or perform the documented full reset."
     )
 
-checkpoint_directory = Path(checkpoint_path)
-if require_empty and checkpoint_directory.exists() and any(checkpoint_directory.iterdir()):
-    raise ValueError(
-        "setup_source found an empty table with a non-empty publisher checkpoint. "
-        "Stop the publisher and reset the table and checkpoint together."
-    )
+if require_empty:
+    try:
+        checkpoint_entries = dbutils.fs.ls(checkpoint_path)
+    except Exception as exception:
+        message = str(exception).lower()
+        if "resource_does_not_exist" in message or "not found" in message:
+            checkpoint_entries = []
+        else:
+            raise
+    if checkpoint_entries:
+        raise ValueError(
+            "setup_source found an empty table with a non-empty publisher checkpoint. "
+            "Stop the publisher and reset the table and checkpoint together."
+        )
 
 dbutils.fs.mkdirs(checkpoint_path)
 result = {

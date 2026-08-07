@@ -1,8 +1,15 @@
 # Databricks notebook source
 from __future__ import annotations
 
-from contract import validate_contract_location, validate_identifier
-from transformations import build_event_dataframe
+import json
+from datetime import UTC, datetime
+
+from contract import (
+    build_envelope,
+    canonical_json,
+    validate_contract_location,
+    validate_identifier,
+)
 
 
 def widget(name: str, default: str) -> str:
@@ -17,41 +24,50 @@ validate_contract_location(catalog_name, schema_name, table_name)
 event_hub_namespace_fqdn = widget("event_hub_namespace_fqdn", "")
 event_hub_name = widget("event_hub_name", "delta-changes")
 service_credential_name = widget("service_credential_name", "")
-checkpoint_path = widget(
-    "checkpoint_path",
-    "/Volumes/poc_notifications/main/streaming_state/cdf_publisher",
-)
 
 if not event_hub_namespace_fqdn.endswith(".servicebus.windows.net"):
     raise ValueError("event_hub_namespace_fqdn must be an Azure Event Hubs namespace FQDN.")
 if not event_hub_name or not service_credential_name:
     raise ValueError("event_hub_name and service_credential_name are required.")
-expected_checkpoint_prefix = f"/Volumes/{catalog_name}/{schema_name}/streaming_state/"
-if not checkpoint_path.startswith(expected_checkpoint_prefix):
-    raise ValueError("checkpoint_path must use the POC streaming_state Unity Catalog volume.")
 
-spark.conf.set("spark.sql.session.timeZone", "UTC")
-qualified_table = f"`{catalog_name}`.`{schema_name}`.`{table_name}`"
+smoke_time = datetime(2000, 1, 1, tzinfo=UTC)
+smoke_row = {
+    "signal_id": "__kafka_smoke__",
+    "vehicle_id": "connectivity-probe",
+    "signal_type": "connectivity",
+    "signal_value": 0.0,
+    "event_timestamp": smoke_time,
+    "updated_at": smoke_time,
+    "_change_type": "insert",
+    "_commit_version": 0,
+    "_commit_timestamp": smoke_time,
+}
+smoke_value = canonical_json(
+    build_envelope(
+        smoke_row,
+        catalog_name=catalog_name,
+        schema_name=schema_name,
+        table_name=table_name,
+    )
+)
 kafka_options = {
     "kafka.bootstrap.servers": f"{event_hub_namespace_fqdn}:9093",
     "topic": event_hub_name,
     "databricks.serviceCredential": service_credential_name,
 }
 
-changes = spark.readStream.option("readChangeFeed", "true").table(qualified_table)
-events = build_event_dataframe(
-    changes,
-    catalog_name=catalog_name,
-    schema_name=schema_name,
-    table_name=table_name,
+spark.createDataFrame(
+    [(smoke_row["signal_id"], smoke_value)],
+    "key STRING, value STRING",
+).write.format("kafka").options(**kafka_options).save()
+
+dbutils.notebook.exit(
+    json.dumps(
+        {
+            "event_id": "vehicle_signals-__kafka_smoke__-v0-insert",
+            "event_hub": event_hub_name,
+            "status": "sent",
+        },
+        separators=(",", ":"),
+    )
 )
-query = (
-    events.writeStream.format("kafka")
-    .options(**kafka_options)
-    .option("checkpointLocation", checkpoint_path)
-    .outputMode("append")
-    .queryName("delta_change_notification_publisher")
-    .trigger(processingTime="5 seconds")
-    .start()
-)
-query.awaitTermination()

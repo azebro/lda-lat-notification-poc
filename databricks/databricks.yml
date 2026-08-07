@@ -12,6 +12,8 @@ variables:
     description: Event Hubs FQDN from AZURE_EVENT_HUB_NAMESPACE_FQDN.
   service_credential_name:
     description: Unity Catalog service credential created by bootstrap-databricks.ps1.
+  ownership_token:
+    description: POC ownership token from AZURE_NAME_TOKEN.
   catalog_name:
     default: poc_notifications
   schema_name:

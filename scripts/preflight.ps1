@@ -8,6 +8,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+if ($env:POC_PREFLIGHT_COMPLETE -eq 'true') {
+    Write-Host 'Preflight already completed by Phase 5 orchestration.'
+    return
+}
+
 $requiredTools = @('az', 'azd', 'databricks', 'dotnet', 'pwsh')
 $missingTools = @($requiredTools | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
 
@@ -44,8 +49,8 @@ if ($databricksVersionText -notmatch '(?<version>\d+\.\d+\.\d+)') {
     throw "Unable to parse Databricks CLI version: $databricksVersionText"
 }
 
-if ([version]$Matches.version -lt [version]'0.275.0') {
-    throw "Databricks CLI 0.275.0 or later is required. Found $databricksVersionText."
+if ([version]$Matches.version -lt [version]'0.278.0') {
+    throw "Databricks CLI 0.278.0 or later is required. Found $databricksVersionText."
 }
 
 if ($SkipAzureChecks) {

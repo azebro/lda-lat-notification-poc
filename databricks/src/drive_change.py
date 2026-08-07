@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from contract import (
     contract_timestamp,
@@ -44,7 +44,7 @@ spark.conf.set("spark.sql.session.timeZone", "UTC")
 qualified_table = f"`{catalog_name}`.`{schema_name}`.`{table_name}`"
 matches = spark.table(qualified_table).where(sql.col("signal_id") == signal_id)
 match_count = matches.count()
-now = datetime.now(timezone.utc)
+now = datetime.now(UTC)
 
 if mode == "insert":
     if match_count:
@@ -86,7 +86,7 @@ commit_version = int(history.version)
 result = {
     "signal_id": signal_id,
     "commit_version": commit_version,
-    "commit_timestamp": contract_timestamp(history.timestamp.replace(tzinfo=timezone.utc)),
+    "commit_timestamp": contract_timestamp(history.timestamp.replace(tzinfo=UTC)),
     "change_type": change_type,
     "expected_event_id": deterministic_event_id(
         signal_id,
